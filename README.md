@@ -1,40 +1,90 @@
-# GhostClaw Mission Control (Android-first)
+# GhostClaw Mission Control
 
-A mobile-first control surface for OpenClaw Gateway with a cleaner UX than the default dashboard.
+Mobile-first **OpenClaw Gateway operations UI** built with Expo + React Native.
 
-## ✅ Current Status
+- Android-first UX (clean tab navigation, dark mode)
+- First-launch gateway onboarding (URL + token)
+- Live mode + mock mode
+- Tabs for Dashboard, Jobs, Sessions, Channels, Settings
 
-### Implemented now
-- Android-first dark UI + bottom navigation
-- First-launch onboarding (Gateway URL + token)
-- Local persistence for URL/token (`AsyncStorage`)
-- Dashboard, Jobs queue, Sessions, Channels, Settings
-- Advanced Mode safety gate for risky channel actions
-- Mock/live switch support in Settings
-- Gateway API adapter scaffold with fallback endpoint paths:
-  - `/status` and `/api/status`
-  - `/jobs` and `/api/jobs`
-  - `/sessions` and `/api/sessions`
-  - `/channels` and `/api/channels`
+## Screens/Features
 
-### In progress
-- Exact endpoint payload mapping to your live gateway response shapes
-- Safe config write flow (diff preview + rollback)
+### ✅ Implemented
+- Bottom-tab mobile layout
+- Gateway URL/token onboarding + local persistence (`AsyncStorage`)
+- Health dashboard card + quick actions
+- Jobs queue view
+- Sessions view
+- Channels view with **Advanced Mode** safety gate for risky actions
+- WebSocket-based live gateway RPC calls (`status`, `health`, `sessions.list`, `cron.list`, `channels.status`)
+- Mock fallback data when live mode is unavailable
 
-## Run locally
+### 🚧 Planned / Next
+- Full endpoint shape hardening for every gateway variant
+- Safer config write workflow (confirm/diff/rollback)
+- Better error surfaces + retry UX
 
-```bash
-cd mission-control
-npm install
-npm run android
+## Tech Stack
+
+- Expo SDK 54
+- React Native 0.81
+- TypeScript
+- AsyncStorage
+
+## Project Structure
+
+```text
+.
+├─ App.tsx
+├─ src/
+│  ├─ mock/
+│  ├─ services/
+│  │  ├─ gatewayApi.ts
+│  │  └─ gatewayWs.ts
+│  └─ types/
+├─ eas.json
+└─ app.json
 ```
 
-## Build APK (EAS cloud)
+## Local Development
 
 ```bash
-cd mission-control
+cd /home/liam/.openclaw/workspace/mission-control
+npm install
+npm run start
+```
+
+Run on device/simulator:
+
+```bash
+npm run android
+npm run ios
+npm run web
+```
+
+## Build Android APK (EAS)
+
+```bash
 npx eas-cli login
 npx eas-cli build -p android --profile preview
 ```
 
-This project is configured with `eas.json` for APK preview builds.
+## Export Web Build
+
+```bash
+npm run build:web
+```
+
+This outputs static files to `dist/`.
+
+## Deploy to Vercel
+
+```bash
+npx vercel --prod dist
+```
+
+## Repository
+
+- Org: `ghostcoding913`
+- Repo: `mission-control`
+- URL: https://github.com/ghostcoding913/mission-control
