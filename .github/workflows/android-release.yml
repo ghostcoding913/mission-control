@@ -1,0 +1,117 @@
+name: Android APK → GitHub Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag (optional, e.g. android-v1.0.1)"
+        required: false
+        type: string
+      release_name:
+        description: "Release title (optional)"
+        required: false
+        type: string
+      eas_profile:
+        description: "EAS profile"
+        required: false
+        default: "preview"
+        type: string
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate secrets
+        run: |
+          if [ -z "${EXPO_TOKEN:-}" ]; then
+            echo "Missing EXPO_TOKEN secret in this repo."
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Start EAS Android build (wait for completion)
+        run: |
+          npx eas-cli build \
+            -p android \
+            --profile "${{ github.event.inputs.eas_profile || 'preview' }}" \
+            --non-interactive \
+            --wait \
+            --json > eas-build.json
+
+      - name: Extract artifact URLs
+        id: extract
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const raw = fs.readFileSync('eas-build.json', 'utf8').trim();
+          const data = JSON.parse(raw);
+          const build = Array.isArray(data) ? data[0] : data;
+
+          const buildPageUrl = build?.webUrl || build?.buildDetailsPageUrl || '';
+          const apkUrl =
+            build?.artifacts?.applicationArchiveUrl ||
+            build?.artifacts?.buildUrl ||
+            '';
+
+          if (!apkUrl) {
+            console.error('Could not find APK URL in eas-build.json');
+            process.exit(1);
+          }
+
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `apk_url=${apkUrl}\n`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `build_url=${buildPageUrl}\n`);
+          NODE
+
+      - name: Download APK
+        run: |
+          curl -L "${{ steps.extract.outputs.apk_url }}" -o mission-control.apk
+          ls -lh mission-control.apk
+
+      - name: Compute release metadata
+        id: meta
+        run: |
+          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
+            TAG="${{ github.event.inputs.release_tag }}"
+          else
+            TAG="android-${GITHUB_RUN_NUMBER}-$(date -u +%Y%m%d-%H%M)"
+          fi
+
+          if [ -n "${{ github.event.inputs.release_name }}" ]; then
+            NAME="${{ github.event.inputs.release_name }}"
+          else
+            NAME="Mission Control Android Build ${TAG}"
+          fi
+
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.name }}
+          generate_release_notes: true
+          body: |
+            Android APK build from EAS.
+
+            - EAS profile: `${{ github.event.inputs.eas_profile || 'preview' }}`
+            - Commit: `${{ github.sha }}`
+            - EAS build page: ${{ steps.extract.outputs.build_url }}
+          files: |
+            mission-control.apk
