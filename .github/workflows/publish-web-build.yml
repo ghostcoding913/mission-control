@@ -1,0 +1,58 @@
+name: Publish Web Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  publish-web-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout source repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Expo web export
+        run: npx expo export --platform web
+
+      - name: Publish to web-build repo
+        env:
+          GH_TOKEN: ${{ secrets.WEB_BUILD_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "Missing secret WEB_BUILD_REPO_TOKEN"
+            exit 1
+          fi
+
+          TARGET_DIR="/tmp/mission-control-web-build"
+          rm -rf "$TARGET_DIR"
+
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/ghostcoding913/mission-control-web-build.git" "$TARGET_DIR"
+
+          rsync -a --delete dist/ "$TARGET_DIR"/
+
+          cd "$TARGET_DIR"
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No changes in web build output."
+            exit 0
+          fi
+
+          git config user.name "GhostClaw913"
+          git config user.email "ghostclaw913@gmail.com"
+          git add .
+          git commit -m "Update web build from mission-control@${GITHUB_SHA::7}"
+          git push origin main
