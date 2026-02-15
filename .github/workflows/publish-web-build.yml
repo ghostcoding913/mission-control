@@ -43,10 +43,10 @@ jobs:
 
           git clone "https://x-access-token:${GH_TOKEN}@github.com/ghostcoding913/mission-control-web-build.git" "$TARGET_DIR"
 
-          rsync -a --delete dist/ "$TARGET_DIR"/
+          rsync -a --delete --exclude '.git/' dist/ "$TARGET_DIR"/
 
           cd "$TARGET_DIR"
-          if git diff --quiet && git diff --cached --quiet; then
+          if [ -z "$(git status --porcelain)" ]; then
             echo "No changes in web build output."
             exit 0
           fi
