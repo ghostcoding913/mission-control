@@ -10,7 +10,7 @@ type RpcResponse = {
   type?: string;
   ok?: boolean;
   payload?: unknown;
-  error?: { message?: string } | string;
+  error?: { message?: string; details?: { requestId?: string } } | string;
   event?: string;
 };
 
@@ -41,7 +41,13 @@ export class GatewayWsClient {
         mode: 'webchat',
       },
       role: 'operator',
-      scopes: ['operator.admin', 'operator.approvals', 'operator.pairing'],
+      scopes: [
+        'operator.read',
+        'operator.write',
+        'operator.pairing',
+        'operator.approvals',
+        'operator.admin',
+      ],
       caps: [],
       auth: this.token ? { token: this.token } : undefined,
     };
@@ -105,7 +111,9 @@ export class GatewayWsClient {
             this.pending.delete(data.id);
 
             if (data.ok === false) {
-              const errMsg = typeof data.error === 'string' ? data.error : data.error?.message ?? 'Gateway request failed';
+              const baseErr = typeof data.error === 'string' ? data.error : data.error?.message ?? 'Gateway request failed';
+              const requestId = typeof data.error === 'string' ? undefined : data.error?.details?.requestId;
+              const errMsg = requestId ? `${baseErr} (requestId: ${requestId})` : baseErr;
               p.reject(new Error(errMsg));
               if (String(data.id).includes('connect')) {
                 clearTimeout(timeout);
